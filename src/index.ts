@@ -61,6 +61,17 @@ export class Cipher {
     this.passBadBlocks = false;
     this.encryptedSuffix = "";
   }
+
+  toString() {
+    return `
+dataKey=${this.dataKey} 
+nameKey=${this.nameKey}
+nameTweak=${this.nameTweak}
+dirNameEncrypt=${this.dirNameEncrypt}
+passBadBlocks=${this.passBadBlocks}
+encryptedSuffix=${this.encryptedSuffix}
+`;
+  }
 }
 
 /*
@@ -138,7 +149,7 @@ export function add(x: number | bigint, n: Uint8Array) {
   }
 }
 
-function encryptData(
+export function encryptData(
   input: Uint8Array,
   nonceInput: Uint8Array | undefined,
   c: Cipher
@@ -150,19 +161,80 @@ function encryptData(
     nonce = newNonce();
   }
 
-  const res = new Uint8Array(input.byteLength);
-  res.set(fileMagicBytes, 0);
-  res.set(nonce, secretbox.nonceLength);
+  const res = new Uint8Array(encryptedSize(input.byteLength));
+  // console.log(`size=${encryptedSize(input.byteLength)}`)
+  res.set(fileMagicBytes);
+  res.set(nonce, fileMagicSize);
+  // console.log(`res=${res}`)
 
   for (
     let offset = 0, i = 0;
     offset < input.byteLength;
     offset += blockDataSize, i += 1
   ) {
+    // console.log(`i=${i}`)
     const readBuf = input.slice(offset, offset + blockDataSize);
+    // console.log(`readBuf=${readBuf}`)
+
     const buf = secretbox(readBuf, nonce, c.dataKey);
+    // console.log(`buf=${buf}`)
+
     increment(nonce);
-    res.set(buf, offset + i * blockHeaderSize);
+
+    res.set(buf, fileMagicSize + fileNonceSize + offset + i * blockHeaderSize);
+    // console.log(`res=${res}`)
+  }
+
+  // console.log(`final res=${res}`)
+  return res;
+}
+
+function compArr(x: Uint8Array, y: Uint8Array) {
+  if (x.length !== y.length) {
+    return false;
+  }
+  for (let i = 0; i < x.length; ++i) {
+    if (x[i] !== y[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function decryptData(input: Uint8Array, c: Cipher) {
+  // console.log(`input=${input}`)
+  if (input.byteLength < fileHeaderSize) {
+    throw Error(msgErrorEncryptedFileTooShort);
+  }
+  if (!compArr(input.slice(0, fileMagicSize), fileMagicBytes)) {
+    throw Error(msgErrorEncryptedBadMagic);
+  }
+  const nonce = input.slice(fileMagicSize, fileHeaderSize);
+  // console.log(`nonce=${nonce}`)
+
+  const res = new Uint8Array(decryptedSize(input.byteLength));
+  for (
+    let offset = 0, i = 0;
+    offset < input.byteLength - fileHeaderSize;
+    offset += blockSize, i += 1
+  ) {
+    // console.log(`i=${i}`)
+    const readBuf = input.slice(
+      fileHeaderSize + offset,
+      fileHeaderSize + offset + blockSize
+    );
+    // console.log(`readBuf=${readBuf}`)
+
+    const buf = secretbox.open(readBuf, nonce, c.dataKey);
+    if (buf === null) {
+      throw Error(msgErrorEncryptedBadBlock);
+    }
+    // console.log(`buf=${buf}`)
+
+    increment(nonce);
+
+    res.set(buf, offset);
+    // console.log(`res=${res}`)
   }
 
   return res;
