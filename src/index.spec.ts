@@ -1,6 +1,15 @@
-import { deepStrictEqual, equal } from "assert";
+import { deepStrictEqual, equal, throws } from "assert";
 import { secretbox } from "tweetnacl";
-import { increment, add, key, Cipher } from ".";
+import {
+  increment,
+  add,
+  key,
+  Cipher,
+  encryptedSize,
+  decryptedSize,
+  msgErrorEncryptedFileTooShort,
+  msgErrorEncryptedFileBadHeader,
+} from ".";
 
 describe("Nonce Computation", () => {
   it("TestNonceIncrement", async () => {
@@ -542,5 +551,49 @@ describe("Key Computation", () => {
     deepStrictEqual(zero32, c.dataKey);
     deepStrictEqual(zero32, c.nameKey);
     deepStrictEqual(zero16, c.nameTweak);
+  });
+});
+
+describe("Size Computation", () => {
+  it("TestEncryptedSize", async () => {
+    const c = new Cipher();
+
+    const cases: number[][] = [
+      [0, 32],
+      [1, 32 + 16 + 1],
+      [65536, 32 + 16 + 65536],
+      [65537, 32 + 16 + 65536 + 16 + 1],
+      [1 << 20, 32 + 16 * (16 + 65536)],
+      [(1 << 20) + 65535, 32 + 16 * (16 + 65536) + 16 + 65535],
+      [1 << 30, 32 + 16384 * (16 + 65536)],
+      //   [(1 << 40) + 1, 32 + 16777216 * (16 + 65536) + 16 + 1], // too large for js number
+    ];
+
+    for (const [input, expected] of cases) {
+      const actual = encryptedSize(input);
+      equal(actual, expected);
+
+      const recovered = decryptedSize(expected);
+      equal(input, recovered);
+    }
+  });
+
+  it("TestDecryptedSize", async () => {
+    const c = new Cipher();
+
+    const cases = [
+      [0, msgErrorEncryptedFileTooShort],
+      [0, msgErrorEncryptedFileTooShort],
+      [1, msgErrorEncryptedFileTooShort],
+      [7, msgErrorEncryptedFileTooShort],
+      [32 + 1, msgErrorEncryptedFileBadHeader],
+      [32 + 16, msgErrorEncryptedFileBadHeader],
+      [32 + 16 + 65536 + 1, msgErrorEncryptedFileBadHeader],
+      [32 + 16 + 65536 + 16, msgErrorEncryptedFileBadHeader],
+    ];
+
+    for (const [input, errMsg] of cases) {
+      throws(() => decryptedSize(input as number), new Error(errMsg as string));
+    }
   });
 });

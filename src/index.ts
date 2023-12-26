@@ -18,22 +18,26 @@ const defaultSalt = new Uint8Array([
   0x1f, 0x86, 0xb1,
 ]);
 
-const msgErrorBadDecryptUTF8 = "bad decryption - utf-8 invalid";
-const msgErrorBadDecryptControlChar = "bad decryption - contains control chars";
-const msgErrorNotAMultipleOfBlocksize = "not a multiple of blocksize";
-const msgErrorTooShortAfterDecode = "too short after base32 decode";
-const msgErrorTooLongAfterDecode = "too long after base32 decode";
-const msgErrorEncryptedFileTooShort = "file is too short to be encrypted";
-const msgErrorEncryptedFileBadHeader = "file has truncated block header";
-const msgErrorEncryptedBadMagic = "not an encrypted file - bad magic string";
-const msgErrorEncryptedBadBlock =
+export const msgErrorBadDecryptUTF8 = "bad decryption - utf-8 invalid";
+export const msgErrorBadDecryptControlChar =
+  "bad decryption - contains control chars";
+export const msgErrorNotAMultipleOfBlocksize = "not a multiple of blocksize";
+export const msgErrorTooShortAfterDecode = "too short after base32 decode";
+export const msgErrorTooLongAfterDecode = "too long after base32 decode";
+export const msgErrorEncryptedFileTooShort =
+  "file is too short to be encrypted";
+export const msgErrorEncryptedFileBadHeader = "file has truncated block header";
+export const msgErrorEncryptedBadMagic =
+  "not an encrypted file - bad magic string";
+export const msgErrorEncryptedBadBlock =
   "failed to authenticate decrypted block - bad password?";
-const msgErrorBadBase32Encoding = "bad base32 filename encoding";
-const msgErrorFileClosed = "file already closed";
-const msgErrorNotAnEncryptedFile =
+export const msgErrorBadBase32Encoding = "bad base32 filename encoding";
+export const msgErrorFileClosed = "file already closed";
+export const msgErrorNotAnEncryptedFile =
   "not an encrypted file - does not match suffix";
-const msgErrorBadSeek = "Seek beyond end of file";
-const msgErrorSuffixMissingDot = "suffix config setting should include a '.'";
+export const msgErrorBadSeek = "Seek beyond end of file";
+export const msgErrorSuffixMissingDot =
+  "suffix config setting should include a '.'";
 
 // Cipher defines an encoding and decoding cipher for the crypt backend
 export class Cipher {
@@ -164,7 +168,7 @@ function encryptData(
   return res;
 }
 
-function encryptedSize(size: number) {
+export function encryptedSize(size: number) {
   const blocks = Math.floor(size / blockDataSize);
   const residue = size % blockDataSize;
   let encryptedSize =
@@ -175,7 +179,7 @@ function encryptedSize(size: number) {
   return encryptedSize;
 }
 
-function decryptedSize(size: number) {
+export function decryptedSize(size: number) {
   let size2 = size;
   size2 -= fileHeaderSize;
   if (size2 < 0) {
