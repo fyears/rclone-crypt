@@ -52,16 +52,16 @@ export class Cipher {
   // const buffers         sync.Pool // encrypt/decrypt buffers
   // const cryptoRand      io.Reader // read crypto random numbers from here
   dirNameEncrypt: boolean;
-  passBadBlocks: boolean; // if set passed bad blocks as zeroed blocks
-  encryptedSuffix: string;
+  // passBadBlocks: boolean; // if set passed bad blocks as zeroed blocks
+  // encryptedSuffix: string;
 
   constructor() {
     this.dataKey = new Uint8Array(32);
     this.nameKey = new Uint8Array(32);
     this.nameTweak = new Uint8Array(nameCipherBlockSize);
     this.dirNameEncrypt = true;
-    this.passBadBlocks = false;
-    this.encryptedSuffix = "";
+    // this.passBadBlocks = false;
+    // this.encryptedSuffix = "";
   }
 
   toString() {
@@ -70,8 +70,6 @@ dataKey=${this.dataKey}
 nameKey=${this.nameKey}
 nameTweak=${this.nameTweak}
 dirNameEncrypt=${this.dirNameEncrypt}
-passBadBlocks=${this.passBadBlocks}
-encryptedSuffix=${this.encryptedSuffix}
 `;
   }
 
