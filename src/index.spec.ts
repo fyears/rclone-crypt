@@ -1,4 +1,4 @@
-import { deepStrictEqual, deepEqual, throws, rejects } from "assert";
+import { deepStrictEqual, throws, rejects } from "assert";
 import { secretbox } from "tweetnacl";
 import {
   increment,
@@ -42,10 +42,10 @@ describe("Filename Encryption", () => {
     await c.key("", "");
     for (const [input, expected] of cases) {
       const actual = await c.encryptSegment(input);
-      deepEqual(actual, expected);
+      deepStrictEqual(actual, expected);
 
       const recovered = await c.decryptSegment(expected);
-      deepEqual(recovered, input);
+      deepStrictEqual(recovered, input);
     }
   });
 
@@ -77,10 +77,7 @@ describe("Filename Encryption", () => {
       if (errMsg === "") {
         rejects(async () => await c.decryptSegment(input));
       } else {
-        rejects(
-          async () => await c.decryptSegment(input),
-          new Error(errMsg)
-        );
+        rejects(async () => await c.decryptSegment(input), new Error(errMsg));
       }
     }
   });
@@ -644,10 +641,10 @@ describe("Size Computation", () => {
 
     for (const [input, expected] of cases) {
       const actual = encryptedSize(input);
-      deepEqual(actual, expected);
+      deepStrictEqual(actual, expected);
 
       const recovered = decryptedSize(expected);
-      deepEqual(input, recovered);
+      deepStrictEqual(input, recovered);
     }
   });
 
