@@ -133,12 +133,12 @@ encryptedSuffix=${this.encryptedSuffix}
     return base32hex.stringify(ciphertext, { pad: false }).toLowerCase();
   }
 
-  async encryptFileName(input: string, c: Cipher) {
+  async encryptFileName(input: string) {
     const segments = input.split("/");
     for (let i = 0; i < segments.length; ++i) {
       // Skip directory name encryption if the user chose to
       // leave them intact
-      if (!c.dirNameEncrypt && i !== segments.length - 1) {
+      if (!this.dirNameEncrypt && i !== segments.length - 1) {
         continue;
       }
 

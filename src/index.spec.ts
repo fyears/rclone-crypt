@@ -81,6 +81,43 @@ describe("Filename Encryption", () => {
       }
     }
   });
+
+  it("TestStandardEncryptFileNameBase32", async () => {
+    const cases = [
+      ["1", "p0e52nreeaj0a5ea7s64m4j72s"],
+      ["1/12", "p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng"],
+      [
+        "1/12/123",
+        "p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng/qgm4avr35m5loi1th53ato71v0",
+      ],
+      // ["1-v2001-02-03-040506-123", "p0e52nreeaj0a5ea7s64m4j72s-v2001-02-03-040506-123"],
+      // ["1/12-v2001-02-03-040506-123", "p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng-v2001-02-03-040506-123"]
+    ];
+    const c = new Cipher();
+    for (const [input, expected] of cases) {
+      deepStrictEqual(expected, await c.encryptFileName(input));
+    }
+  });
+
+  it("TestStandardDecryptFileNameBase32", async () => {
+    const cases = [
+      ["p0e52nreeaj0a5ea7s64m4j72s", "1"],
+      ["p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng", "1/12"],
+      [
+        "p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng/qgm4avr35m5loi1th53ato71v0",
+        "1/12/123",
+      ],
+    ];
+    const c = new Cipher();
+    for (const [input, expected] of cases) {
+      deepStrictEqual(expected, await c.decryptFileName(input));
+
+      // Add a character should raise ErrorNotAMultipleOfBlocksize
+      rejects(async () => {
+        await c.decryptFileName(`1${input}`);
+      }, new Error(msgErrorNotAMultipleOfBlocksize));
+    }
+  });
 });
 
 describe("Nonce Computation", () => {
