@@ -74,126 +74,202 @@ passBadBlocks=${this.passBadBlocks}
 encryptedSuffix=${this.encryptedSuffix}
 `;
   }
-}
 
-/*
- * func (c *Cipher) Key(password, salt string) (err error)
- */
-export async function key(password: string, salt: string, c: Cipher) {
-  const keySize = c.dataKey.length + c.nameKey.length + c.nameTweak.length;
-  // console.log(`keySize=${keySize}`)
-  let saltBytes = defaultSalt;
-  if (salt !== "") {
-    saltBytes = new TextEncoder().encode(salt);
-  }
-  let key: Uint8Array;
-  if (password === "") {
-    key = new Uint8Array(keySize);
-  } else {
-    key = await scrypt(
-      new TextEncoder().encode(password),
-      saltBytes,
-      16384,
-      8,
-      1,
-      keySize
+  async key(password: string, salt: string) {
+    const keySize =
+      this.dataKey.length + this.nameKey.length + this.nameTweak.length;
+    // console.log(`keySize=${keySize}`)
+    let saltBytes = defaultSalt;
+    if (salt !== "") {
+      saltBytes = new TextEncoder().encode(salt);
+    }
+    let key: Uint8Array;
+    if (password === "") {
+      key = new Uint8Array(keySize);
+    } else {
+      key = await scrypt(
+        new TextEncoder().encode(password),
+        saltBytes,
+        16384,
+        8,
+        1,
+        keySize
+      );
+    }
+    // console.log(`key=${key}`)
+    this.dataKey.set(key.slice(0, this.dataKey.length));
+    this.nameKey.set(
+      key.slice(this.dataKey.length, this.dataKey.length + this.nameKey.length)
     );
+    this.nameTweak.set(key.slice(this.dataKey.length + this.nameKey.length));
+    return this;
   }
-  // console.log(`key=${key}`)
-  c.dataKey.set(key.slice(0, c.dataKey.length));
-  c.nameKey.set(
-    key.slice(c.dataKey.length, c.dataKey.length + c.nameKey.length)
-  );
-  c.nameTweak.set(key.slice(c.dataKey.length + c.nameKey.length));
-  return c;
-}
 
-// encryptSegment encrypts a path segment
-//
-// This uses EME with AES.
-//
-// EME (ECB-Mix-ECB) is a wide-block encryption mode presented in the
-// 2003 paper "A Parallelizable Enciphering Mode" by Halevi and
-// Rogaway.
-//
-// This makes for deterministic encryption which is what we want - the
-// same filename must encrypt to the same thing.
-//
-// This means that
-//   - filenames with the same name will encrypt the same
-//   - filenames which start the same won't have a common prefix
-export async function encryptSegment(plaintext: string, c: Cipher) {
-  if (plaintext === "") {
-    return "";
+  // encryptSegment encrypts a path segment
+  //
+  // This uses EME with AES.
+  //
+  // EME (ECB-Mix-ECB) is a wide-block encryption mode presented in the
+  // 2003 paper "A Parallelizable Enciphering Mode" by Halevi and
+  // Rogaway.
+  //
+  // This makes for deterministic encryption which is what we want - the
+  // same filename must encrypt to the same thing.
+  //
+  // This means that
+  //   - filenames with the same name will encrypt the same
+  //   - filenames which start the same won't have a common prefix
+  async encryptSegment(plaintext: string) {
+    if (plaintext === "") {
+      return "";
+    }
+    const paddedPlaintext = pad(
+      new TextEncoder().encode(plaintext) as any,
+      nameCipherBlockSize
+    );
+    const bc = new AESCipherBlock(this.nameKey);
+    const eme = new EMECipher(bc);
+    const ciphertext = await eme.encrypt(this.nameTweak, paddedPlaintext);
+    return base32hex.stringify(ciphertext, { pad: false }).toLowerCase();
   }
-  const paddedPlaintext = pad(
-    new TextEncoder().encode(plaintext) as any,
-    nameCipherBlockSize
-  );
-  const bc = new AESCipherBlock(c.nameKey);
-  const eme = new EMECipher(bc);
-  const ciphertext = await eme.encrypt(c.nameTweak, paddedPlaintext);
-  return base32hex.stringify(ciphertext, { pad: false }).toLowerCase();
-}
 
-export async function encryptFileName(input: string, c: Cipher) {
-  const segments = input.split("/");
-  for (let i = 0; i < segments.length; ++i) {
-    // Skip directory name encryption if the user chose to
-    // leave them intact
-    if (!c.dirNameEncrypt && i !== segments.length - 1) {
-      continue;
+  async encryptFileName(input: string, c: Cipher) {
+    const segments = input.split("/");
+    for (let i = 0; i < segments.length; ++i) {
+      // Skip directory name encryption if the user chose to
+      // leave them intact
+      if (!c.dirNameEncrypt && i !== segments.length - 1) {
+        continue;
+      }
+
+      segments[i] = await this.encryptSegment(segments[i]);
+    }
+    return segments.join("/");
+  }
+
+  async decryptSegment(ciphertext: string) {
+    if (ciphertext === "") {
+      return "";
+    }
+    if (ciphertext.endsWith("=")) {
+      // should not have ending = in our seting
+      throw new Error(msgErrorBadBase32Encoding);
+    }
+    const rawCiphertext = base32hex.parse(ciphertext.toUpperCase(), {
+      loose: true,
+    });
+
+    if (rawCiphertext.byteLength % nameCipherBlockSize !== 0) {
+      throw new Error(msgErrorNotAMultipleOfBlocksize);
     }
 
-    segments[i] = await encryptSegment(segments[i], c);
-  }
-  return segments.join("/");
-}
-
-export async function decryptSegment(ciphertext: string, c: Cipher) {
-  if (ciphertext === "") {
-    return "";
-  }
-  if (ciphertext.endsWith("=")) {
-    // should not have ending = in our seting
-    throw new Error(msgErrorBadBase32Encoding);
-  }
-  const rawCiphertext = base32hex.parse(ciphertext.toUpperCase(), {
-    loose: true,
-  });
-
-  if (rawCiphertext.byteLength % nameCipherBlockSize !== 0) {
-    throw new Error(msgErrorNotAMultipleOfBlocksize);
-  }
-
-  if (rawCiphertext.byteLength === 0) {
-    // not possible if decodeFilename() working correctly
-    throw new Error(msgErrorTooShortAfterDecode);
-  }
-  if (rawCiphertext.byteLength > 2048) {
-    throw new Error(msgErrorTooLongAfterDecode);
-  }
-
-  const bc = new AESCipherBlock(c.nameKey);
-  const eme = new EMECipher(bc);
-  const paddedPlaintext = await eme.decrypt(c.nameTweak, rawCiphertext);
-  const plaintext = unpad(paddedPlaintext as any);
-  return new TextDecoder().decode(plaintext);
-}
-
-export async function decryptFileName(input: string, c: Cipher) {
-  const segments = input.split("/");
-  for (let i = 0; i < segments.length; ++i) {
-    // Skip directory name encryption if the user chose to
-    // leave them intact
-    if (!c.dirNameEncrypt && i !== segments.length - 1) {
-      continue;
+    if (rawCiphertext.byteLength === 0) {
+      // not possible if decodeFilename() working correctly
+      throw new Error(msgErrorTooShortAfterDecode);
+    }
+    if (rawCiphertext.byteLength > 2048) {
+      throw new Error(msgErrorTooLongAfterDecode);
     }
 
-    segments[i] = await decryptSegment(segments[i], c);
+    const bc = new AESCipherBlock(this.nameKey);
+    const eme = new EMECipher(bc);
+    const paddedPlaintext = await eme.decrypt(this.nameTweak, rawCiphertext);
+    const plaintext = unpad(paddedPlaintext as any);
+    return new TextDecoder().decode(plaintext);
   }
 
-  return segments.join("/");
+  async decryptFileName(input: string) {
+    const segments = input.split("/");
+    for (let i = 0; i < segments.length; ++i) {
+      // Skip directory name encryption if the user chose to
+      // leave them intact
+      if (!this.dirNameEncrypt && i !== segments.length - 1) {
+        continue;
+      }
+
+      segments[i] = await this.decryptSegment(segments[i]);
+    }
+
+    return segments.join("/");
+  }
+
+  async encryptData(input: Uint8Array, nonceInput: Uint8Array | undefined) {
+    let nonce: Uint8Array;
+    if (nonceInput !== undefined) {
+      nonce = nonceInput;
+    } else {
+      nonce = newNonce();
+    }
+
+    const res = new Uint8Array(encryptedSize(input.byteLength));
+    // console.log(`size=${encryptedSize(input.byteLength)}`)
+    res.set(fileMagicBytes);
+    res.set(nonce, fileMagicSize);
+    // console.log(`res=${res}`)
+
+    for (
+      let offset = 0, i = 0;
+      offset < input.byteLength;
+      offset += blockDataSize, i += 1
+    ) {
+      // console.log(`i=${i}`)
+      const readBuf = input.slice(offset, offset + blockDataSize);
+      // console.log(`readBuf=${readBuf}`)
+
+      const buf = secretbox(readBuf, nonce, this.dataKey);
+      // console.log(`buf=${buf}`)
+
+      increment(nonce);
+
+      res.set(
+        buf,
+        fileMagicSize + fileNonceSize + offset + i * blockHeaderSize
+      );
+      // console.log(`res=${res}`)
+    }
+
+    // console.log(`final res=${res}`)
+    return res;
+  }
+
+  async decryptData(input: Uint8Array) {
+    // console.log(`input=${input}`)
+    if (input.byteLength < fileHeaderSize) {
+      throw Error(msgErrorEncryptedFileTooShort);
+    }
+    if (!compArr(input.slice(0, fileMagicSize), fileMagicBytes)) {
+      throw Error(msgErrorEncryptedBadMagic);
+    }
+    const nonce = input.slice(fileMagicSize, fileHeaderSize);
+    // console.log(`nonce=${nonce}`)
+
+    const res = new Uint8Array(decryptedSize(input.byteLength));
+    for (
+      let offset = 0, i = 0;
+      offset < input.byteLength - fileHeaderSize;
+      offset += blockSize, i += 1
+    ) {
+      // console.log(`i=${i}`)
+      const readBuf = input.slice(
+        fileHeaderSize + offset,
+        fileHeaderSize + offset + blockSize
+      );
+      // console.log(`readBuf=${readBuf}`)
+
+      const buf = secretbox.open(readBuf, nonce, this.dataKey);
+      if (buf === null) {
+        throw Error(msgErrorEncryptedBadBlock);
+      }
+      // console.log(`buf=${buf}`)
+
+      increment(nonce);
+
+      res.set(buf, offset);
+      // console.log(`res=${res}`)
+    }
+
+    return res;
+  }
 }
 
 // func (n *nonce) carry(i int)
@@ -239,46 +315,6 @@ export function add(x: number | bigint, n: Uint8Array) {
   }
 }
 
-export function encryptData(
-  input: Uint8Array,
-  nonceInput: Uint8Array | undefined,
-  c: Cipher
-) {
-  let nonce: Uint8Array;
-  if (nonceInput !== undefined) {
-    nonce = nonceInput;
-  } else {
-    nonce = newNonce();
-  }
-
-  const res = new Uint8Array(encryptedSize(input.byteLength));
-  // console.log(`size=${encryptedSize(input.byteLength)}`)
-  res.set(fileMagicBytes);
-  res.set(nonce, fileMagicSize);
-  // console.log(`res=${res}`)
-
-  for (
-    let offset = 0, i = 0;
-    offset < input.byteLength;
-    offset += blockDataSize, i += 1
-  ) {
-    // console.log(`i=${i}`)
-    const readBuf = input.slice(offset, offset + blockDataSize);
-    // console.log(`readBuf=${readBuf}`)
-
-    const buf = secretbox(readBuf, nonce, c.dataKey);
-    // console.log(`buf=${buf}`)
-
-    increment(nonce);
-
-    res.set(buf, fileMagicSize + fileNonceSize + offset + i * blockHeaderSize);
-    // console.log(`res=${res}`)
-  }
-
-  // console.log(`final res=${res}`)
-  return res;
-}
-
 function compArr(x: Uint8Array, y: Uint8Array) {
   if (x.length !== y.length) {
     return false;
@@ -289,45 +325,6 @@ function compArr(x: Uint8Array, y: Uint8Array) {
     }
   }
   return true;
-}
-
-export function decryptData(input: Uint8Array, c: Cipher) {
-  // console.log(`input=${input}`)
-  if (input.byteLength < fileHeaderSize) {
-    throw Error(msgErrorEncryptedFileTooShort);
-  }
-  if (!compArr(input.slice(0, fileMagicSize), fileMagicBytes)) {
-    throw Error(msgErrorEncryptedBadMagic);
-  }
-  const nonce = input.slice(fileMagicSize, fileHeaderSize);
-  // console.log(`nonce=${nonce}`)
-
-  const res = new Uint8Array(decryptedSize(input.byteLength));
-  for (
-    let offset = 0, i = 0;
-    offset < input.byteLength - fileHeaderSize;
-    offset += blockSize, i += 1
-  ) {
-    // console.log(`i=${i}`)
-    const readBuf = input.slice(
-      fileHeaderSize + offset,
-      fileHeaderSize + offset + blockSize
-    );
-    // console.log(`readBuf=${readBuf}`)
-
-    const buf = secretbox.open(readBuf, nonce, c.dataKey);
-    if (buf === null) {
-      throw Error(msgErrorEncryptedBadBlock);
-    }
-    // console.log(`buf=${buf}`)
-
-    increment(nonce);
-
-    res.set(buf, offset);
-    // console.log(`res=${res}`)
-  }
-
-  return res;
 }
 
 export function encryptedSize(size: number) {

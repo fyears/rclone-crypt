@@ -3,16 +3,11 @@ import { secretbox } from "tweetnacl";
 import {
   increment,
   add,
-  key,
   Cipher,
   encryptedSize,
   decryptedSize,
   msgErrorEncryptedFileTooShort,
   msgErrorEncryptedFileBadHeader,
-  encryptData,
-  decryptData,
-  encryptSegment,
-  decryptSegment,
   msgErrorBadBase32Encoding,
   msgErrorTooLongAfterDecode,
   msgErrorNotAMultipleOfBlocksize,
@@ -44,12 +39,12 @@ describe("Filename Encryption", () => {
       ],
     ];
     const c = new Cipher();
-    await key("", "", c);
+    await c.key("", "");
     for (const [input, expected] of cases) {
-      const actual = await encryptSegment(input, c);
+      const actual = await c.encryptSegment(input);
       deepEqual(actual, expected);
 
-      const recovered = await decryptSegment(expected, c);
+      const recovered = await c.decryptSegment(expected);
       deepEqual(recovered, input);
     }
   });
@@ -78,11 +73,14 @@ describe("Filename Encryption", () => {
 
     for (const [input, errMsg] of cases) {
       // console.log(input)
-      // await decryptSegment(input, c)
+      // await decryptSegment(input)
       if (errMsg === "") {
-        rejects(async () => await decryptSegment(input, c));
+        rejects(async () => await c.decryptSegment(input));
       } else {
-        rejects(async () => await decryptSegment(input, c), new Error(errMsg));
+        rejects(
+          async () => await c.decryptSegment(input),
+          new Error(errMsg)
+        );
       }
     }
   });
@@ -514,7 +512,7 @@ describe("Key Computation", () => {
   it("TestKey #2", async () => {
     const c = new Cipher();
 
-    await key("potato", "", c);
+    await c.key("potato", "");
     deepStrictEqual(
       new Uint8Array([
         0x74, 0x55, 0xc7, 0x1a, 0xb1, 0x7c, 0x86, 0x5b, 0x84, 0x71, 0xf4, 0x7b,
@@ -541,7 +539,7 @@ describe("Key Computation", () => {
   });
   it("TestKey #3", async () => {
     const c = new Cipher();
-    await key("Potato", "", c);
+    await c.key("Potato", "");
     deepStrictEqual(
       new Uint8Array([
         0xae, 0xea, 0x6a, 0xd3, 0x47, 0xdf, 0x75, 0xb9, 0x63, 0xce, 0x12, 0xf5,
@@ -568,7 +566,7 @@ describe("Key Computation", () => {
   });
   it("TestKey #4", async () => {
     const c = new Cipher();
-    await key("potato", "sausage", c);
+    await c.key("potato", "sausage");
     deepStrictEqual(
       new Uint8Array([
         0x8e, 0x9b, 0x6b, 0x99, 0xf8, 0x69, 0x4, 0x67, 0xa0, 0x71, 0xf9, 0xcb,
@@ -595,7 +593,7 @@ describe("Key Computation", () => {
   });
   it("TestKey #5", async () => {
     const c = new Cipher();
-    await key("potato", "Sausage", c);
+    await c.key("potato", "Sausage");
     deepStrictEqual(
       new Uint8Array([
         0xda, 0x81, 0x8c, 0x67, 0xef, 0x11, 0xf, 0xc8, 0xd5, 0xc8, 0x62, 0x4b,
@@ -624,7 +622,7 @@ describe("Key Computation", () => {
     const zero32 = new Uint8Array(32);
     const zero16 = new Uint8Array(16);
     const c = new Cipher();
-    await key("", "", c);
+    await c.key("", "");
     deepStrictEqual(zero32, c.dataKey);
     deepStrictEqual(zero32, c.nameKey);
     deepStrictEqual(zero16, c.nameTweak);
@@ -633,8 +631,6 @@ describe("Key Computation", () => {
 
 describe("Size Computation", () => {
   it("TestEncryptedSize", async () => {
-    const c = new Cipher();
-
     const cases: number[][] = [
       [0, 32],
       [1, 32 + 16 + 1],
@@ -656,8 +652,6 @@ describe("Size Computation", () => {
   });
 
   it("TestDecryptedSize", async () => {
-    const c = new Cipher();
-
     const cases = [
       [0, msgErrorEncryptedFileTooShort],
       [0, msgErrorEncryptedFileTooShort],
@@ -675,7 +669,7 @@ describe("Size Computation", () => {
   });
 });
 
-describe("RealEnc", () => {
+describe("Encryption of simple cases", () => {
   const file0 = new Uint8Array([
     0x52, 0x43, 0x4c, 0x4f, 0x4e, 0x45, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
     0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
@@ -714,11 +708,11 @@ describe("RealEnc", () => {
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
         0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
       ]);
-      const encrypted = encryptData(input, nonce, c);
+      const encrypted = await c.encryptData(input, nonce);
       deepStrictEqual(encrypted, expected);
       // console.log(`after enc c=${c.toString()}`)
 
-      const decrypted = decryptData(encrypted, c);
+      const decrypted = await c.decryptData(encrypted);
       deepStrictEqual(decrypted, input);
     }
   });
