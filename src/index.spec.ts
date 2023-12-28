@@ -1,4 +1,4 @@
-import { deepStrictEqual, equal, throws } from "assert";
+import { deepStrictEqual, deepEqual, throws, rejects } from "assert";
 import { secretbox } from "tweetnacl";
 import {
   increment,
@@ -11,7 +11,82 @@ import {
   msgErrorEncryptedFileBadHeader,
   encryptData,
   decryptData,
+  encryptSegment,
+  decryptSegment,
+  msgErrorBadBase32Encoding,
+  msgErrorTooLongAfterDecode,
+  msgErrorNotAMultipleOfBlocksize,
 } from ".";
+import { base32hex } from "rfc4648";
+
+describe("Filename Encryption", () => {
+  it("TestEncryptSegmentBase32", async () => {
+    const cases = [
+      ["", ""],
+      ["1", "p0e52nreeaj0a5ea7s64m4j72s"],
+      ["12", "l42g6771hnv3an9cgc8cr2n1ng"],
+      ["123", "qgm4avr35m5loi1th53ato71v0"],
+      ["1234", "8ivr2e9plj3c3esisjpdisikos"],
+      ["12345", "rh9vu63q3o29eqmj4bg6gg7s44"],
+      ["123456", "bn717l3alepn75b2fb2ejmi4b4"],
+      ["1234567", "n6bo9jmb1qe3b1ogtj5qkf19k8"],
+      ["12345678", "u9t24j7uaq94dh5q53m3s4t9ok"],
+      ["123456789", "37hn305g6j12d1g0kkrl7ekbs4"],
+      ["1234567890", "ot8d91eplaglb62k2b1trm2qv0"],
+      ["12345678901", "h168vvrgb53qnrtvvmb378qrcs"],
+      ["123456789012", "s3hsdf9e29ithrqbjqu01t8q2s"],
+      ["1234567890123", "cf3jimlv1q2oc553mv7s3mh3eo"],
+      ["12345678901234", "moq0uqdlqrblrc5pa5u5c7hq9g"],
+      ["123456789012345", "eeam3li4rnommi3a762h5n7meg"],
+      [
+        "1234567890123456",
+        "mijbj0frqf6ms7frcr6bd9h0env53jv96pjaaoirk7forcgpt70g",
+      ],
+    ];
+    const c = new Cipher();
+    await key("", "", c);
+    for (const [input, expected] of cases) {
+      const actual = await encryptSegment(input, c);
+      deepEqual(actual, expected);
+
+      const recovered = await decryptSegment(expected, c);
+      deepEqual(recovered, input);
+    }
+  });
+
+  it("TestDecryptSegmentBase32", async () => {
+    // We've tested the forwards above, now concentrate on the errors
+    const longName = new Uint8Array(3328);
+    for (let i = 0; i < longName.length; ++i) {
+      longName[i] = parseInt("a");
+    }
+    const c = new Cipher();
+    const cases = [
+      ["64=", msgErrorBadBase32Encoding],
+      ["!", ""],
+      [new TextDecoder().decode(longName), msgErrorTooLongAfterDecode],
+      [
+        base32hex.stringify(new TextEncoder().encode("a")),
+        msgErrorNotAMultipleOfBlocksize,
+      ],
+      [
+        base32hex.stringify(new TextEncoder().encode("123456789abcdef")),
+        msgErrorNotAMultipleOfBlocksize,
+      ],
+      [base32hex.stringify(new TextEncoder().encode("123456789abcdef0")), ""],
+    ];
+
+    for (const [input, errMsg] of cases) {
+      // console.log(input)
+      // await decryptSegment(input, c)
+      if (errMsg === "") {
+        rejects(async () => await decryptSegment(input, c));
+      } else {
+        rejects(async () => await decryptSegment(input, c), new Error(errMsg));
+      }
+    }
+  });
+});
 
 describe("Nonce Computation", () => {
   it("TestNonceIncrement", async () => {
@@ -573,10 +648,10 @@ describe("Size Computation", () => {
 
     for (const [input, expected] of cases) {
       const actual = encryptedSize(input);
-      equal(actual, expected);
+      deepEqual(actual, expected);
 
       const recovered = decryptedSize(expected);
-      equal(input, recovered);
+      deepEqual(input, recovered);
     }
   });
 

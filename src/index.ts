@@ -1,6 +1,8 @@
 import { scrypt } from "scrypt-js";
 import { secretbox, randomBytes } from "tweetnacl";
 import { pad, unpad } from "pkcs7-padding";
+import { EMECipher, AESCipherBlock } from "@fyears/eme";
+import { base32, base32hex } from "rfc4648";
 
 const newNonce = () => randomBytes(secretbox.nonceLength);
 
@@ -104,6 +106,94 @@ export async function key(password: string, salt: string, c: Cipher) {
   );
   c.nameTweak.set(key.slice(c.dataKey.length + c.nameKey.length));
   return c;
+}
+
+// encryptSegment encrypts a path segment
+//
+// This uses EME with AES.
+//
+// EME (ECB-Mix-ECB) is a wide-block encryption mode presented in the
+// 2003 paper "A Parallelizable Enciphering Mode" by Halevi and
+// Rogaway.
+//
+// This makes for deterministic encryption which is what we want - the
+// same filename must encrypt to the same thing.
+//
+// This means that
+//   - filenames with the same name will encrypt the same
+//   - filenames which start the same won't have a common prefix
+export async function encryptSegment(plaintext: string, c: Cipher) {
+  if (plaintext === "") {
+    return "";
+  }
+  const paddedPlaintext = pad(
+    new TextEncoder().encode(plaintext) as any,
+    nameCipherBlockSize
+  );
+  const bc = new AESCipherBlock(c.nameKey);
+  const eme = new EMECipher(bc);
+  const ciphertext = await eme.encrypt(c.nameTweak, paddedPlaintext);
+  return base32hex.stringify(ciphertext, { pad: false }).toLowerCase();
+}
+
+export async function encryptFileName(input: string, c: Cipher) {
+  const segments = input.split("/");
+  for (let i = 0; i < segments.length; ++i) {
+    // Skip directory name encryption if the user chose to
+    // leave them intact
+    if (!c.dirNameEncrypt && i !== segments.length - 1) {
+      continue;
+    }
+
+    segments[i] = await encryptSegment(segments[i], c);
+  }
+  return segments.join("/");
+}
+
+export async function decryptSegment(ciphertext: string, c: Cipher) {
+  if (ciphertext === "") {
+    return "";
+  }
+  if (ciphertext.endsWith("=")) {
+    // should not have ending = in our seting
+    throw new Error(msgErrorBadBase32Encoding);
+  }
+  const rawCiphertext = base32hex.parse(ciphertext.toUpperCase(), {
+    loose: true,
+  });
+
+  if (rawCiphertext.byteLength % nameCipherBlockSize !== 0) {
+    throw new Error(msgErrorNotAMultipleOfBlocksize);
+  }
+
+  if (rawCiphertext.byteLength === 0) {
+    // not possible if decodeFilename() working correctly
+    throw new Error(msgErrorTooShortAfterDecode);
+  }
+  if (rawCiphertext.byteLength > 2048) {
+    throw new Error(msgErrorTooLongAfterDecode);
+  }
+
+  const bc = new AESCipherBlock(c.nameKey);
+  const eme = new EMECipher(bc);
+  const paddedPlaintext = await eme.decrypt(c.nameTweak, rawCiphertext);
+  const plaintext = unpad(paddedPlaintext as any);
+  return new TextDecoder().decode(plaintext);
+}
+
+export async function decryptFileName(input: string, c: Cipher) {
+  const segments = input.split("/");
+  for (let i = 0; i < segments.length; ++i) {
+    // Skip directory name encryption if the user chose to
+    // leave them intact
+    if (!c.dirNameEncrypt && i !== segments.length - 1) {
+      continue;
+    }
+
+    segments[i] = await decryptSegment(segments[i], c);
+  }
+
+  return segments.join("/");
 }
 
 // func (n *nonce) carry(i int)

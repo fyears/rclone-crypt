@@ -28,7 +28,9 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@fyears/eme": "^0.0.1",
     "pkcs7-padding": "^0.1.1",
+    "rfc4648": "^1.5.3",
     "scrypt-js": "^3.0.1",
     "tweetnacl": "^1.0.3"
   }
