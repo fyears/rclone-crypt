@@ -1,0 +1,4 @@
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.png filter=lfs diff=lfs merge=lfs -text
+tests/static_assets/mona_lisa/rusmgs5sj86k3dsjbcne8os2sdtjaekkbma5h8u00269jcsplhocn5e59fcb3jec4b74a62ric7j0lr8t2ebdibgbbt47ofsnl6n2lgj12752v2962a3hmi20q7uuj5h filter=lfs diff=lfs merge=lfs -text

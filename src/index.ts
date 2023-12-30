@@ -241,28 +241,30 @@ dirNameEncrypt=${this.dirNameEncrypt}
     const nonce = input.slice(fileMagicSize, fileHeaderSize);
     // console.log(`nonce=${nonce}`)
 
+    // console.log(`dec size=${decryptedSize(input.byteLength)}`);
     const res = new Uint8Array(decryptedSize(input.byteLength));
     for (
-      let offset = 0, i = 0;
-      offset < input.byteLength - fileHeaderSize;
-      offset += blockSize, i += 1
+      let offsetInput = fileHeaderSize, offsetOutput = 0, i = 0;
+      offsetInput < input.byteLength;
+      offsetInput += blockSize, offsetOutput += blockDataSize, i += 1
     ) {
-      // console.log(`i=${i}`)
-      const readBuf = input.slice(
-        fileHeaderSize + offset,
-        fileHeaderSize + offset + blockSize
-      );
+      // console.log(`i=${i}`);
+      // console.log(`offsetInput = ${offsetInput}`);
+      const readBuf = input.slice(offsetInput, offsetInput + blockSize);
+      // console.log(`readBuf length = ${readBuf.length}`);
       // console.log(`readBuf=${readBuf}`)
 
       const buf = secretbox.open(readBuf, nonce, this.dataKey);
       if (buf === null) {
         throw Error(msgErrorEncryptedBadBlock);
       }
+      // console.log(`buf length = ${buf.length}`);
       // console.log(`buf=${buf}`)
 
       increment(nonce);
 
-      res.set(buf, offset);
+      // console.log(`offsetOutput = ${offsetOutput}`);
+      res.set(buf, offsetOutput);
       // console.log(`res=${res}`)
     }
 

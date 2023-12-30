@@ -13,6 +13,8 @@ import {
   msgErrorNotAMultipleOfBlocksize,
 } from "../src";
 import { base32hex } from "rfc4648";
+import { promises as fs } from "fs";
+import * as path from "path";
 
 describe("Filename Encryption", () => {
   it("TestEncryptSegmentBase32", async () => {
@@ -749,5 +751,48 @@ describe("Encryption of simple cases", () => {
       const decrypted = await c.decryptData(encrypted);
       deepStrictEqual(decrypted, input);
     }
+  });
+});
+
+describe("Really RClone Files", () => {
+  it("MonaLisaImageFileName", async () => {
+    const testFileName =
+      "1374px-Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg";
+    const expected =
+      "rusmgs5sj86k3dsjbcne8os2sdtjaekkbma5h8u00269jcsplhocn5e59fcb3jec4b74a62ric7j0lr8t2ebdibgbbt47ofsnl6n2lgj12752v2962a3hmi20q7uuj5h";
+    const password = "testpassword";
+
+    const cipher = new Cipher();
+    await cipher.key(password, "");
+
+    const actual = await cipher.encryptFileName(testFileName);
+    deepStrictEqual(actual, expected);
+
+    const recovered = await cipher.decryptFileName(actual);
+    deepStrictEqual(recovered, testFileName);
+
+    rejects(async () => await cipher.decryptFileName(`xx${actual}`));
+  });
+
+  it("MonaLisaImageContent", async () => {
+    const testFolder = path.join(__dirname, "static_assets", "mona_lisa");
+    const testFileName =
+      "1374px-Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg";
+    const password = "testpassword";
+
+    const cipher = new Cipher();
+    await cipher.key(password, "");
+
+    const encFileName = await cipher.encryptFileName(testFileName);
+
+    const decContent = new Uint8Array(
+      (await fs.readFile(path.join(testFolder, testFileName))).buffer
+    );
+    const encContent = new Uint8Array(
+      (await fs.readFile(path.join(testFolder, encFileName))).buffer
+    );
+
+    const runtimeDecContent = await cipher.decryptData(encContent);
+    deepStrictEqual(runtimeDecContent, decContent);
   });
 });
