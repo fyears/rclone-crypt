@@ -11,7 +11,7 @@ import {
   msgErrorBadBase32Encoding,
   msgErrorTooLongAfterDecode,
   msgErrorNotAMultipleOfBlocksize,
-} from ".";
+} from "../src";
 import { base32hex } from "rfc4648";
 
 describe("Filename Encryption", () => {
