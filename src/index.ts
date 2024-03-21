@@ -2,7 +2,11 @@ import { scrypt } from "scrypt-js";
 import { secretbox, randomBytes } from "tweetnacl";
 import { pad, unpad } from "pkcs7-padding";
 import { EMECipher, AESCipherBlock } from "@fyears/eme";
-import { base32, base32hex } from "rfc4648";
+import { base32hex, base64url } from "rfc4648";
+import {
+  encode as base32768Encode,
+  decode as base32768Decode,
+} from "base32768";
 
 const newNonce = () => randomBytes(secretbox.nonceLength);
 
@@ -23,9 +27,6 @@ const defaultSalt = new Uint8Array([
 export const msgErrorBadDecryptUTF8 = "bad decryption - utf-8 invalid";
 export const msgErrorBadDecryptControlChar =
   "bad decryption - contains control chars";
-export const msgErrorNotAMultipleOfBlocksize = "not a multiple of blocksize";
-export const msgErrorTooShortAfterDecode = "too short after base32 decode";
-export const msgErrorTooLongAfterDecode = "too long after base32 decode";
 export const msgErrorEncryptedFileTooShort =
   "file is too short to be encrypted";
 export const msgErrorEncryptedFileBadHeader = "file has truncated block header";
@@ -41,27 +42,22 @@ export const msgErrorBadSeek = "Seek beyond end of file";
 export const msgErrorSuffixMissingDot =
   "suffix config setting should include a '.'";
 
+type FileNameEncodingType = "base32" | "base64" | "base32768";
+
 // Cipher defines an encoding and decoding cipher for the crypt backend
 export class Cipher {
   dataKey: Uint8Array; //  [32]byte                  // Key for secretbox
   nameKey: Uint8Array; //  [32]byte                  // 16,24 or 32 bytes
-  nameTweak: Uint8Array; //  [nameCipherBlockSize]byte // used to tweak the name crypto
-  // const block           gocipher.Block
-  // const mode            NameEncryptionMode
-  // const fileNameEnc     fileNameEncoding
-  // const buffers         sync.Pool // encrypt/decrypt buffers
-  // const cryptoRand      io.Reader // read crypto random numbers from here
+  nameTweak: Uint8Array;
+  fileNameEnc: FileNameEncodingType;
   dirNameEncrypt: boolean;
-  // passBadBlocks: boolean; // if set passed bad blocks as zeroed blocks
-  // encryptedSuffix: string;
 
-  constructor() {
+  constructor(fileNameEnc: FileNameEncodingType = "base32") {
     this.dataKey = new Uint8Array(32);
     this.nameKey = new Uint8Array(32);
     this.nameTweak = new Uint8Array(nameCipherBlockSize);
     this.dirNameEncrypt = true;
-    // this.passBadBlocks = false;
-    // this.encryptedSuffix = "";
+    this.fileNameEnc = fileNameEnc;
   }
 
   toString() {
@@ -70,7 +66,40 @@ dataKey=${this.dataKey}
 nameKey=${this.nameKey}
 nameTweak=${this.nameTweak}
 dirNameEncrypt=${this.dirNameEncrypt}
+fileNameEnc=${this.fileNameEnc}
 `;
+  }
+
+  encodeToString(ciphertext: Uint8Array) {
+    if (this.fileNameEnc === "base32") {
+      return base32hex.stringify(ciphertext, { pad: false }).toLowerCase();
+    } else if (this.fileNameEnc === "base64") {
+      return base64url.stringify(ciphertext, { pad: false });
+    } else if (this.fileNameEnc === "base32768") {
+      return base32768Encode(ciphertext);
+    } else {
+      throw Error(`unknown fileNameEnc=${this.fileNameEnc}`);
+    }
+  }
+
+  decodeString(ciphertext: string) {
+    if (this.fileNameEnc === "base32") {
+      if (ciphertext.endsWith("=")) {
+        // should not have ending = in our seting
+        throw new Error(msgErrorBadBase32Encoding);
+      }
+      return base32hex.parse(ciphertext.toUpperCase(), {
+        loose: true,
+      });
+    } else if (this.fileNameEnc === "base64") {
+      return base64url.parse(ciphertext, {
+        loose: true,
+      });
+    } else if (this.fileNameEnc === "base32768") {
+      return base32768Decode(ciphertext);
+    } else {
+      throw Error(`unknown fileNameEnc=${this.fileNameEnc}`);
+    }
   }
 
   async key(password: string, salt: string) {
@@ -128,7 +157,7 @@ dirNameEncrypt=${this.dirNameEncrypt}
     const bc = new AESCipherBlock(this.nameKey);
     const eme = new EMECipher(bc);
     const ciphertext = await eme.encrypt(this.nameTweak, paddedPlaintext);
-    return base32hex.stringify(ciphertext, { pad: false }).toLowerCase();
+    return this.encodeToString(ciphertext);
   }
 
   async encryptFileName(input: string) {
@@ -149,25 +178,7 @@ dirNameEncrypt=${this.dirNameEncrypt}
     if (ciphertext === "") {
       return "";
     }
-    if (ciphertext.endsWith("=")) {
-      // should not have ending = in our seting
-      throw new Error(msgErrorBadBase32Encoding);
-    }
-    const rawCiphertext = base32hex.parse(ciphertext.toUpperCase(), {
-      loose: true,
-    });
-
-    if (rawCiphertext.byteLength % nameCipherBlockSize !== 0) {
-      throw new Error(msgErrorNotAMultipleOfBlocksize);
-    }
-
-    if (rawCiphertext.byteLength === 0) {
-      // not possible if decodeFilename() working correctly
-      throw new Error(msgErrorTooShortAfterDecode);
-    }
-    if (rawCiphertext.byteLength > 2048) {
-      throw new Error(msgErrorTooLongAfterDecode);
-    }
+    const rawCiphertext = this.decodeString(ciphertext);
 
     const bc = new AESCipherBlock(this.nameKey);
     const eme = new EMECipher(bc);

@@ -9,14 +9,12 @@ import {
   msgErrorEncryptedFileTooShort,
   msgErrorEncryptedFileBadHeader,
   msgErrorBadBase32Encoding,
-  msgErrorTooLongAfterDecode,
-  msgErrorNotAMultipleOfBlocksize,
 } from "../src";
-import { base32hex } from "rfc4648";
+import { base32hex, base64 } from "rfc4648";
 import { promises as fs } from "fs";
 import * as path from "path";
 
-describe("Filename Encryption", () => {
+describe("Filename Encryption: base32", () => {
   it("TestEncryptSegmentBase32", async () => {
     const cases = [
       ["", ""],
@@ -61,15 +59,9 @@ describe("Filename Encryption", () => {
     const cases = [
       ["64=", msgErrorBadBase32Encoding],
       ["!", ""],
-      [new TextDecoder().decode(longName), msgErrorTooLongAfterDecode],
-      [
-        base32hex.stringify(new TextEncoder().encode("a")),
-        msgErrorNotAMultipleOfBlocksize,
-      ],
-      [
-        base32hex.stringify(new TextEncoder().encode("123456789abcdef")),
-        msgErrorNotAMultipleOfBlocksize,
-      ],
+      [new TextDecoder().decode(longName), ""],
+      [base32hex.stringify(new TextEncoder().encode("a")), ""],
+      [base32hex.stringify(new TextEncoder().encode("123456789abcdef")), ""],
       [base32hex.stringify(new TextEncoder().encode("123456789abcdef0")), ""],
     ];
 
@@ -77,9 +69,12 @@ describe("Filename Encryption", () => {
       // console.log(input)
       // await decryptSegment(input)
       if (errMsg === "") {
-        rejects(async () => await c.decryptSegment(input));
+        await rejects(async () => await c.decryptSegment(input));
       } else {
-        rejects(async () => await c.decryptSegment(input), new Error(errMsg));
+        await rejects(async () => await c.decryptSegment(input), {
+          name: "Error",
+          message: errMsg,
+        });
       }
     }
   });
@@ -115,10 +110,112 @@ describe("Filename Encryption", () => {
       deepStrictEqual(expected, await c.decryptFileName(input));
 
       // Add a character should raise ErrorNotAMultipleOfBlocksize
-      rejects(async () => {
+      await rejects(async () => {
         await c.decryptFileName(`1${input}`);
-      }, new Error(msgErrorNotAMultipleOfBlocksize));
+      });
     }
+  });
+});
+
+describe("Filename Encryption: base64", () => {
+  describe("Filename Encryption: base64", () => {
+    it("TestEncryptSegmentBase64", async () => {
+      const cases = [
+        ["", ""],
+        ["1", "yBxRX25ypgUVyj8MSxJnFw"],
+        ["12", "qQUDHOGN_jVdLIMQzYrhvA"],
+        ["123", "1CxFf2Mti1xIPYlGruDh-A"],
+        ["1234", "RL-xOTmsxsG7kuTy2XJUxw"],
+        ["12345", "3FP_GHoeBJdq0yLgaED8IQ"],
+        ["123456", "Xc4T1Gqrs3OVYnrE6dpEWQ"],
+        ["1234567", "uZeEzssOnDWHEOzLqjwpog"],
+        ["12345678", "8noiTP5WkkbEuijsPhOpxQ"],
+        ["123456789", "GeNxgLA0wiaGAKU3U7qL4Q"],
+        ["1234567890", "x1DUhdmqoVWYVBLD3dha-A"],
+        ["12345678901", "iEyP_3BZR6vvv_2WM6NbZw"],
+        ["123456789012", "4OPGvS4SZdjvS568APUaFw"],
+        ["1234567890123", "Y8c5Wr8OhYYUo7fPwdojdg"],
+        ["12345678901234", "tjQPabXW112wuVF8Vh46TA"],
+        ["123456789012345", "c5Vh1kTd8WtIajmFEtz2dA"],
+        ["1234567890123456", "tKa5gfvTzW4d-2bMtqYgdf5Rz-k2ZqViW6HfjbIZ6cE"],
+      ];
+      const c = new Cipher("base64");
+      await c.key("", "");
+      for (const [input, expected] of cases) {
+        const actual = await c.encryptSegment(input);
+        deepStrictEqual(actual, expected);
+
+        const recovered = await c.decryptSegment(expected);
+        deepStrictEqual(recovered, input);
+      }
+    });
+
+    it("TestDecryptSegmentBase64", async () => {
+      // We've tested the forwards above, now concentrate on the errors
+      const longName = new Uint8Array(3328);
+      for (let i = 0; i < longName.length; ++i) {
+        longName[i] = parseInt("a");
+      }
+      const c = new Cipher("base64");
+      const cases = [
+        ["6H=", ""],
+        ["!", ""],
+        [new TextDecoder().decode(longName), ""],
+        [base64.stringify(new TextEncoder().encode("a")), ""],
+        [base64.stringify(new TextEncoder().encode("123456789abcdef")), ""],
+        [base64.stringify(new TextEncoder().encode("123456789abcdef0")), ""],
+      ];
+
+      for (const [input, errMsg] of cases) {
+        // console.log(input)
+        // await decryptSegment(input)
+        if (errMsg === "") {
+          await rejects(async () => await c.decryptSegment(input));
+        } else {
+          await rejects(async () => await c.decryptSegment(input), {
+            name: "Error",
+            message: errMsg,
+          });
+        }
+      }
+    });
+
+    it("TestStandardEncryptFileNameBase64", async () => {
+      const cases = [
+        ["1", "yBxRX25ypgUVyj8MSxJnFw"],
+        ["1/12", "yBxRX25ypgUVyj8MSxJnFw/qQUDHOGN_jVdLIMQzYrhvA"],
+        [
+          "1/12/123",
+          "yBxRX25ypgUVyj8MSxJnFw/qQUDHOGN_jVdLIMQzYrhvA/1CxFf2Mti1xIPYlGruDh-A",
+        ],
+        // ["1-v2001-02-03-040506-123", "yBxRX25ypgUVyj8MSxJnFw-v2001-02-03-040506-123"],
+        // ["1/12-v2001-02-03-040506-123", "yBxRX25ypgUVyj8MSxJnFw/qQUDHOGN_jVdLIMQzYrhvA-v2001-02-03-040506-123"]
+      ];
+      const c = new Cipher("base64");
+      for (const [input, expected] of cases) {
+        deepStrictEqual(expected, await c.encryptFileName(input));
+      }
+    });
+
+    it("TestStandardDecryptFileNameBase64", async () => {
+      const cases = [
+        ["yBxRX25ypgUVyj8MSxJnFw", "1"],
+        ["yBxRX25ypgUVyj8MSxJnFw/qQUDHOGN_jVdLIMQzYrhvA", "1/12"],
+        [
+          "yBxRX25ypgUVyj8MSxJnFw/qQUDHOGN_jVdLIMQzYrhvA/1CxFf2Mti1xIPYlGruDh-A",
+          "1/12/123",
+        ],
+      ];
+      const c = new Cipher("base64");
+      for (const [input, expected] of cases) {
+        deepStrictEqual(expected, await c.decryptFileName(input));
+
+        // Add a character should raise ErrorNotAMultipleOfBlocksize
+        await rejects(async () => {
+          await c.decryptFileName(`1${input}`);
+        });
+      }
+    });
   });
 });
 
@@ -771,7 +868,7 @@ describe("Really RClone Files", () => {
     const recovered = await cipher.decryptFileName(actual);
     deepStrictEqual(recovered, testFileName);
 
-    rejects(async () => await cipher.decryptFileName(`xx${actual}`));
+    await rejects(async () => await cipher.decryptFileName(`xx${actual}`));
   });
 
   it("MonaLisaImageContent", async () => {
