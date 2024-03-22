@@ -11,6 +11,7 @@ import {
   msgErrorBadBase32Encoding,
 } from "../src";
 import { base32hex, base64 } from "rfc4648";
+import * as base32768 from "base32768";
 import { promises as fs } from "fs";
 import * as path from "path";
 
@@ -207,6 +208,102 @@ describe("Filename Encryption: base64", () => {
         ],
       ];
       const c = new Cipher("base64");
+      for (const [input, expected] of cases) {
+        deepStrictEqual(expected, await c.decryptFileName(input));
+
+        // Add a character should raise ErrorNotAMultipleOfBlocksize
+        await rejects(async () => {
+          await c.decryptFileName(`1${input}`);
+        });
+      }
+    });
+  });
+});
+
+describe("Filename Encryption: base32768", () => {
+  describe("Filename Encryption: base32768", () => {
+    it("TestEncryptSegmentBase32768", async () => {
+      const cases = [
+        ["", ""],
+        ["1", "詮㪗鐮僀伎作㻖㢧⪟"],
+        ["12", "竢朧䉱虃光塬䟛⣡蓟"],
+        ["123", "遶㞟鋅缕袡鲅ⵝ蝁ꌟ"],
+        ["1234", "䢟銮䵵狌㐜燳谒颴詟"],
+        ["12345", "钉Ꞇ㖃蚩憶狫朰杜㜿"],
+        ["123456", "啇ᚵⵕ憗䋫➫➓肤卟"],
+        ["1234567", "茫螓翁連劘樓㶔抉矟"],
+        ["12345678", "龝☳䘊辄岅較络㧩襟"],
+        ["123456789", "ⲱ苀㱆犂媐Ꮤ锇惫靟"],
+        ["1234567890", "計宁憕偵匢皫╛纺ꌟ"],
+        ["12345678901", "檆䨿鑫㪺藝ꡖ勇䦛婟"],
+        ["123456789012", "雑頏䰂䲝淚哚鹡魺⪟"],
+        ["1234567890123", "塃璶繁躸圅㔟䗃肃懟"],
+        ["12345678901234", "腺ᕚ崚鏕鏥讥鼌䑺䲿"],
+        ["123456789012345", "怪绕滻蕶肣但⠥荖惟"],
+        ["1234567890123456", "肳哀旚挶靏鏻㾭䱠慟㪳ꏆ賊兲铧敻塹魀ʟ"],
+      ];
+      const c = new Cipher("base32768");
+      await c.key("", "");
+      for (const [input, expected] of cases) {
+        const actual = await c.encryptSegment(input);
+        deepStrictEqual(actual, expected);
+
+        const recovered = await c.decryptSegment(expected);
+        deepStrictEqual(recovered, input);
+      }
+    });
+
+    it("TestDecryptSegmentBase32768", async () => {
+      // We've tested the forwards above, now concentrate on the errors
+      const longName = new Uint8Array(3328);
+      for (let i = 0; i < longName.length; ++i) {
+        longName[i] = parseInt("a");
+      }
+      const c = new Cipher("base32768");
+      const cases = [
+        ["怪=", ""],
+        ["!", ""],
+        [new TextDecoder().decode(longName), ""],
+        [base32768.encode(new TextEncoder().encode("a")), ""],
+        [base32768.encode(new TextEncoder().encode("123456789abcdef")), ""],
+        [base32768.encode(new TextEncoder().encode("123456789abcdef0")), ""],
+      ];
+
+      for (const [input, errMsg] of cases) {
+        // console.log(input)
+        // await decryptSegment(input)
+        if (errMsg === "") {
+          await rejects(async () => await c.decryptSegment(input));
+        } else {
+          await rejects(async () => await c.decryptSegment(input), {
+            name: "Error",
+            message: errMsg,
+          });
+        }
+      }
+    });
+
+    it("TestStandardEncryptFileNameBase32768", async () => {
+      const cases = [
+        ["1", "詮㪗鐮僀伎作㻖㢧⪟"],
+        ["1/12", "詮㪗鐮僀伎作㻖㢧⪟/竢朧䉱虃光塬䟛⣡蓟"],
+        ["1/12/123", "詮㪗鐮僀伎作㻖㢧⪟/竢朧䉱虃光塬䟛⣡蓟/遶㞟鋅缕袡鲅ⵝ蝁ꌟ"],
+        // ["1-v2001-02-03-040506-123", "詮㪗鐮僀伎作㻖㢧⪟-v2001-02-03-040506-123"],
+        // ["1/12-v2001-02-03-040506-123", "詮㪗鐮僀伎作㻖㢧⪟/竢朧䉱虃光塬䟛⣡蓟-v2001-02-03-040506-123"],
+      ];
+      const c = new Cipher("base32768");
+      for (const [input, expected] of cases) {
+        deepStrictEqual(expected, await c.encryptFileName(input));
+      }
+    });
+
+    it("TestStandardDecryptFileNameBase32768", async () => {
+      const cases = [
+        ["詮㪗鐮僀伎作㻖㢧⪟", "1"],
+        ["詮㪗鐮僀伎作㻖㢧⪟/竢朧䉱虃光塬䟛⣡蓟", "1/12"],
+        ["詮㪗鐮僀伎作㻖㢧⪟/竢朧䉱虃光塬䟛⣡蓟/遶㞟鋅缕袡鲅ⵝ蝁ꌟ", "1/12/123"],
+      ];
+      const c = new Cipher("base32768");
       for (const [input, expected] of cases) {
         deepStrictEqual(expected, await c.decryptFileName(input));
 

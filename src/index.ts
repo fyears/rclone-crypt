@@ -3,10 +3,7 @@ import { secretbox, randomBytes } from "tweetnacl";
 import { pad, unpad } from "pkcs7-padding";
 import { EMECipher, AESCipherBlock } from "@fyears/eme";
 import { base32hex, base64url } from "rfc4648";
-import {
-  encode as base32768Encode,
-  decode as base32768Decode,
-} from "base32768";
+import * as base32768 from "base32768";
 
 const newNonce = () => randomBytes(secretbox.nonceLength);
 
@@ -76,7 +73,7 @@ fileNameEnc=${this.fileNameEnc}
     } else if (this.fileNameEnc === "base64") {
       return base64url.stringify(ciphertext, { pad: false });
     } else if (this.fileNameEnc === "base32768") {
-      return base32768Encode(ciphertext);
+      return base32768.encode(ciphertext);
     } else {
       throw Error(`unknown fileNameEnc=${this.fileNameEnc}`);
     }
@@ -96,7 +93,7 @@ fileNameEnc=${this.fileNameEnc}
         loose: true,
       });
     } else if (this.fileNameEnc === "base32768") {
-      return base32768Decode(ciphertext);
+      return base32768.decode(ciphertext);
     } else {
       throw Error(`unknown fileNameEnc=${this.fileNameEnc}`);
     }
@@ -154,9 +151,11 @@ fileNameEnc=${this.fileNameEnc}
       new TextEncoder().encode(plaintext) as any,
       nameCipherBlockSize
     );
+    // console.log(`paddedPlaintext=${paddedPlaintext}`)
     const bc = new AESCipherBlock(this.nameKey);
     const eme = new EMECipher(bc);
     const ciphertext = await eme.encrypt(this.nameTweak, paddedPlaintext);
+    // console.log(`ciphertext=${ciphertext}`)
     return this.encodeToString(ciphertext);
   }
 
