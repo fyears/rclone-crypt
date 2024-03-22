@@ -1,4 +1,4 @@
-import { scrypt } from "scrypt-js";
+import { scryptAsync } from "@noble/hashes/scrypt";
 import { secretbox, randomBytes } from "tweetnacl";
 import { pad, unpad } from "pkcs7-padding";
 import { EMECipher, AESCipherBlock } from "@fyears/eme";
@@ -111,14 +111,12 @@ fileNameEnc=${this.fileNameEnc}
     if (password === "") {
       key = new Uint8Array(keySize);
     } else {
-      key = await scrypt(
-        new TextEncoder().encode(password),
-        saltBytes,
-        16384,
-        8,
-        1,
-        keySize
-      );
+      key = await scryptAsync(new TextEncoder().encode(password), saltBytes, {
+        N: 2 ** 14,
+        r: 8,
+        p: 1,
+        dkLen: keySize,
+      });
     }
     // console.log(`key=${key}`)
     this.dataKey.set(key.slice(0, this.dataKey.length));
