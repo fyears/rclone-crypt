@@ -49,7 +49,7 @@ export class Cipher {
   fileNameEnc: FileNameEncodingType;
   dirNameEncrypt: boolean;
 
-  constructor(fileNameEnc: FileNameEncodingType = "base32") {
+  constructor(fileNameEnc: FileNameEncodingType) {
     this.dataKey = new Uint8Array(32);
     this.nameKey = new Uint8Array(32);
     this.nameTweak = new Uint8Array(nameCipherBlockSize);

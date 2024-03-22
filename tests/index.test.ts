@@ -39,7 +39,7 @@ describe("Filename Encryption: base32", () => {
         "mijbj0frqf6ms7frcr6bd9h0env53jv96pjaaoirk7forcgpt70g",
       ],
     ];
-    const c = new Cipher();
+    const c = new Cipher("base32");
     await c.key("", "");
     for (const [input, expected] of cases) {
       const actual = await c.encryptSegment(input);
@@ -56,7 +56,7 @@ describe("Filename Encryption: base32", () => {
     for (let i = 0; i < longName.length; ++i) {
       longName[i] = parseInt("a");
     }
-    const c = new Cipher();
+    const c = new Cipher("base32");
     const cases = [
       ["64=", msgErrorBadBase32Encoding],
       ["!", ""],
@@ -91,7 +91,7 @@ describe("Filename Encryption: base32", () => {
       // ["1-v2001-02-03-040506-123", "p0e52nreeaj0a5ea7s64m4j72s-v2001-02-03-040506-123"],
       // ["1/12-v2001-02-03-040506-123", "p0e52nreeaj0a5ea7s64m4j72s/l42g6771hnv3an9cgc8cr2n1ng-v2001-02-03-040506-123"]
     ];
-    const c = new Cipher();
+    const c = new Cipher("base32");
     for (const [input, expected] of cases) {
       deepStrictEqual(expected, await c.encryptFileName(input));
     }
@@ -106,7 +106,7 @@ describe("Filename Encryption: base32", () => {
         "1/12/123",
       ],
     ];
-    const c = new Cipher();
+    const c = new Cipher("base32");
     for (const [input, expected] of cases) {
       deepStrictEqual(expected, await c.decryptFileName(input));
 
@@ -731,7 +731,7 @@ describe("Nonce Computation", () => {
 
 describe("Key Computation", () => {
   it("TestKey #1", async () => {
-    const c = new Cipher();
+    const c = new Cipher("base32");
 
     const zero32 = new Uint8Array(32);
     const zero16 = new Uint8Array(16);
@@ -740,7 +740,7 @@ describe("Key Computation", () => {
     deepStrictEqual(zero16, c.nameTweak);
   });
   it("TestKey #2", async () => {
-    const c = new Cipher();
+    const c = new Cipher("base32");
 
     await c.key("potato", "");
     deepStrictEqual(
@@ -768,7 +768,7 @@ describe("Key Computation", () => {
     );
   });
   it("TestKey #3", async () => {
-    const c = new Cipher();
+    const c = new Cipher("base32");
     await c.key("Potato", "");
     deepStrictEqual(
       new Uint8Array([
@@ -795,7 +795,7 @@ describe("Key Computation", () => {
     );
   });
   it("TestKey #4", async () => {
-    const c = new Cipher();
+    const c = new Cipher("base32");
     await c.key("potato", "sausage");
     deepStrictEqual(
       new Uint8Array([
@@ -822,7 +822,7 @@ describe("Key Computation", () => {
     );
   });
   it("TestKey #5", async () => {
-    const c = new Cipher();
+    const c = new Cipher("base32");
     await c.key("potato", "Sausage");
     deepStrictEqual(
       new Uint8Array([
@@ -851,7 +851,7 @@ describe("Key Computation", () => {
   it("TestKey #6", async () => {
     const zero32 = new Uint8Array(32);
     const zero16 = new Uint8Array(16);
-    const c = new Cipher();
+    const c = new Cipher("base32");
     await c.key("", "");
     deepStrictEqual(zero32, c.dataKey);
     deepStrictEqual(zero32, c.nameKey);
@@ -931,7 +931,7 @@ describe("Encryption of simple cases", () => {
     ];
 
     for (const [input, expected] of cases) {
-      const c = new Cipher();
+      const c = new Cipher("base32");
       // console.log(`init c=${c.toString()}`)
 
       const nonce = new Uint8Array([
@@ -956,7 +956,7 @@ describe("Really RClone Files", () => {
       "rusmgs5sj86k3dsjbcne8os2sdtjaekkbma5h8u00269jcsplhocn5e59fcb3jec4b74a62ric7j0lr8t2ebdibgbbt47ofsnl6n2lgj12752v2962a3hmi20q7uuj5h";
     const password = "testpassword";
 
-    const cipher = new Cipher();
+    const cipher = new Cipher("base32");
     await cipher.key(password, "");
 
     const actual = await cipher.encryptFileName(testFileName);
@@ -974,7 +974,7 @@ describe("Really RClone Files", () => {
       "1374px-Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg";
     const password = "testpassword";
 
-    const cipher = new Cipher();
+    const cipher = new Cipher("base32");
     await cipher.key(password, "");
 
     const encFileName = await cipher.encryptFileName(testFileName);

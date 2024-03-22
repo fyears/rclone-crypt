@@ -21,7 +21,7 @@ import { deepStrictEqual } from "assert";
 (async function () {
   const password = "custom-password";
   const salt = "custom-salt";
-  const cipher = new Cipher();
+  const cipher = new Cipher("base32");
   await cipher.key(password, salt);
 
   const fileName = "custom-dir/custom-filename";
