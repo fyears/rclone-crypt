@@ -128,6 +128,25 @@ fileNameEnc=${this.fileNameEnc}
     return this;
   }
 
+  updateInternalKey(
+    dataKey: Uint8Array,
+    nameKey: Uint8Array,
+    nameTweak: Uint8Array
+  ) {
+    this.dataKey = dataKey;
+    this.nameKey = nameKey;
+    this.nameTweak = nameTweak;
+    return this;
+  }
+
+  getInternalKey() {
+    return {
+      dataKey: this.dataKey,
+      nameKey: this.nameKey,
+      nameTweak: this.nameTweak,
+    };
+  }
+
   // encryptSegment encrypts a path segment
   //
   // This uses EME with AES.
