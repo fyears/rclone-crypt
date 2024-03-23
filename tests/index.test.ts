@@ -1,5 +1,5 @@
 import { deepStrictEqual, throws, rejects } from "assert";
-import { secretbox } from "tweetnacl";
+import { xsalsa20poly1305 } from "@noble/ciphers/salsa";
 import {
   increment,
   add,
@@ -503,9 +503,9 @@ describe("Nonce Computation", () => {
 
     for (const test of cases) {
       // console.log('inside loop')
-      const x = new Uint8Array(secretbox.nonceLength);
+      const x = new Uint8Array(xsalsa20poly1305.nonceLength);
       x.set(test[0]);
-      const y = new Uint8Array(secretbox.nonceLength);
+      const y = new Uint8Array(xsalsa20poly1305.nonceLength);
       y.set(test[1]);
       // console.log(x)
       // console.log(y)
@@ -714,9 +714,9 @@ describe("Nonce Computation", () => {
       // console.log('inside loop')
       const toBeAdd = test[0] as number | bigint;
 
-      const x = new Uint8Array(secretbox.nonceLength);
+      const x = new Uint8Array(xsalsa20poly1305.nonceLength);
       x.set(test[1]);
-      const y = new Uint8Array(secretbox.nonceLength);
+      const y = new Uint8Array(xsalsa20poly1305.nonceLength);
       y.set(test[2]);
 
       // console.log(x)

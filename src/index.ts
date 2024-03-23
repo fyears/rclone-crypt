@@ -1,11 +1,12 @@
 import { scryptAsync } from "@noble/hashes/scrypt";
-import { secretbox, randomBytes } from "tweetnacl";
+import { xsalsa20poly1305 } from "@noble/ciphers/salsa";
+import { randomBytes } from "@noble/ciphers/webcrypto";
 import { pad, unpad } from "pkcs7-padding";
 import { EMECipher, AESCipherBlock } from "@fyears/eme";
 import { base32hex, base64url } from "rfc4648";
 import * as base32768 from "base32768";
 
-const newNonce = () => randomBytes(secretbox.nonceLength);
+const newNonce = () => randomBytes(xsalsa20poly1305.nonceLength); // 24
 
 const nameCipherBlockSize = 16; // aes block size
 const fileMagic = "RCLONE\x00\x00";
@@ -13,7 +14,7 @@ const fileMagicBytes = new TextEncoder().encode(fileMagic);
 const fileMagicSize = fileMagic.length;
 const fileNonceSize = 24;
 const fileHeaderSize = fileMagicSize + fileNonceSize;
-const blockHeaderSize = secretbox.overheadLength;
+const blockHeaderSize = xsalsa20poly1305.tagLength; // 16
 const blockDataSize = 64 * 1024;
 const blockSize = blockHeaderSize + blockDataSize;
 const defaultSalt = new Uint8Array([
@@ -222,7 +223,7 @@ fileNameEnc=${this.fileNameEnc}
       const readBuf = input.slice(offset, offset + blockDataSize);
       // console.log(`readBuf=${readBuf}`)
 
-      const buf = secretbox(readBuf, nonce, this.dataKey);
+      const buf = xsalsa20poly1305(this.dataKey, nonce).encrypt(readBuf);
       // console.log(`buf=${buf}`)
 
       increment(nonce);
@@ -262,7 +263,7 @@ fileNameEnc=${this.fileNameEnc}
       // console.log(`readBuf length = ${readBuf.length}`);
       // console.log(`readBuf=${readBuf}`)
 
-      const buf = secretbox.open(readBuf, nonce, this.dataKey);
+      const buf = xsalsa20poly1305(this.dataKey, nonce).decrypt(readBuf);
       if (buf === null) {
         throw Error(msgErrorEncryptedBadBlock);
       }
