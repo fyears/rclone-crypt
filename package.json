@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "compile": "tsc --declaration",
+    "compile": "npx rimraf dist/ && tsc --declaration",
     "prepublish": "npm run compile",
     "test": "mocha --import=tsx",
     "format": "npx prettier --trailing-comma es5 --write ."
@@ -8,7 +8,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "name": "@fyears/rclone-crypt",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "RClone Crypt",
   "repository": {
     "type": "git",
@@ -28,6 +28,7 @@
     "mocha": "^10.3.0",
     "npm-check-updates": "^16.14.17",
     "prettier": "^3.2.5",
+    "rimraf": "^5.0.5",
     "tsx": "^4.7.1",
     "typescript": "^5.4.3"
   },
